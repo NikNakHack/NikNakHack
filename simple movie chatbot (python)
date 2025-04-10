@@ -1,0 +1,30 @@
+def movie_chatbot():
+    print("🎬 Hi there! I'm your Movie Buddy. Let's chat about movies!")
+    print("Type 'bye' to end the chat.\n")
+
+    while True:
+        user_input = input("You: ").lower()
+
+        if 'bye' in user_input:
+            print("Movie Buddy: 🎥 Catch you later! Enjoy your next film!")
+            break
+        elif 'favorite' in user_input or 'recommend' in user_input:
+            print("Movie Buddy: I love 'Inception', 'The Shawshank Redemption', and 'Parasite'. What kind of movies do you like?")
+        elif 'action' in user_input:
+            print("Movie Buddy: Oh, you should totally check out 'Mad Max: Fury Road' or 'John Wick'!")
+        elif 'comedy' in user_input:
+            print("Movie Buddy: Comedies? Try 'Superbad', 'Step Brothers', or 'The Grand Budapest Hotel'.")
+        elif 'horror' in user_input:
+            print("Movie Buddy: Into horror, huh? 'Hereditary', 'Get Out', and 'The Conjuring' are terrifying!")
+        elif 'drama' in user_input:
+            print("Movie Buddy: For drama, I recommend 'The Godfather', 'Forrest Gump', or 'Moonlight'.")
+        elif 'sci-fi' in user_input or 'science fiction' in user_input:
+            print("Movie Buddy: Sci-fi fans love 'Interstellar', 'Blade Runner 2049', and 'The Matrix'.")
+        elif 'who directed' in user_input:
+            print("Movie Buddy: Hmm, I might need a bit more context. Which movie are you curious about?")
+        else:
+            print("Movie Buddy: That's interesting! Tell me more about your movie taste.")
+
+# Run the chatbot
+if __name__ == "__main__":
+    movie_chatbot()
