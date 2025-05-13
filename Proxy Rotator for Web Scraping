@@ -1,0 +1,21 @@
+import random
+import requests
+
+# Import the list from the previous script
+proxies = [
+    "http://192.168.1.100:8080",
+    "http://192.168.1.101:8080",
+    # Add more proxies here
+]
+
+def get_with_proxy(url):
+    proxy = random.choice(proxies)
+    print(f"Using proxy: {proxy}")
+    try:
+        response = requests.get(url, proxies={"http": proxy, "https": proxy}, timeout=5)
+        return response.text
+    except Exception as e:
+        return f"Failed: {e}"
+
+if __name__ == '__main__':
+    print(get_with_proxy("http://example.com"))
