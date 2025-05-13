@@ -1,0 +1,27 @@
+from flask import Flask, request, redirect
+import requests
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return '''
+        <form action="/proxy">
+            URL to visit: <input name="url" type="text" />
+            <input type="submit" value="Go" />
+        </form>
+    '''
+
+@app.route('/proxy')
+def proxy():
+    target_url = request.args.get('url')
+    if not target_url:
+        return 'URL is required.'
+    try:
+        resp = requests.get(target_url)
+        return resp.text
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+if __name__ == '__main__':
+    app.run(port=5000)
