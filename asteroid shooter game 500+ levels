@@ -1,0 +1,354 @@
+import pygame
+import random
+import math
+
+# --- Initialize Pygame ---
+pygame.init()
+
+# --- Game Constants ---
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GRAY = (128, 128, 128)
+
+# --- Game Setup ---
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Asteroids (500+ Levels)")
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 36)
+
+# --- Helper Functions ---
+def draw_text(text, x, y, color=WHITE):
+    """Helper to draw text on the screen."""
+    text_surface = font.render(text, True, color)
+    text_rect = text_surface.get_rect(center=(x, y))
+    screen.blit(text_surface, text_rect)
+
+def wrap_position(pos, max_val):
+    """Wraps a position around the screen."""
+    if pos > max_val:
+        return 0
+    if pos < 0:
+        return max_val
+    return pos
+
+# --- Game Classes ---
+
+class Player(pygame.sprite.Sprite):
+    """Represents the player's spaceship."""
+    def __init__(self):
+        super().__init__()
+        # Create a simple triangle shape for the ship
+        self.original_image = pygame.Surface((30, 25), pygame.SRCALPHA)
+        pygame.draw.polygon(self.original_image, WHITE, [(15, 0), (0, 25), (30, 25)])
+        self.image = self.original_image
+        self.rect = self.image.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+        
+        # Movement properties
+        self.pos = pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.vel = pygame.Vector2(0, 0)
+        self.angle = 0
+        self.rotation_speed = 4.5
+        self.acceleration = 0.25
+        self.friction = 0.99 # Slows the ship down
+        self.max_speed = 7
+        self.last_shot = 0
+        self.shoot_delay = 250 # Milliseconds
+        self.is_invincible = False
+        self.invincible_timer = 0
+        self.lives = 3
+
+    def rotate(self, clockwise=True):
+        """Rotates the ship."""
+        if clockwise:
+            self.angle -= self.rotation_speed
+        else:
+            self.angle += self.rotation_speed
+        self.angle %= 360
+        self.image = pygame.transform.rotate(self.original_image, self.angle)
+        self.rect = self.image.get_rect(center=self.pos)
+
+    def thrust(self):
+        """Applies forward thrust."""
+        rads = math.radians(self.angle + 90) # +90 because 0 degrees is 'up'
+        self.vel.x += self.acceleration * math.cos(rads)
+        self.vel.y -= self.acceleration * math.sin(rads)
+        
+        # Clamp speed to max_speed
+        if self.vel.length() > self.max_speed:
+            self.vel.scale_to_length(self.max_speed)
+
+    def shoot(self, bullet_group, all_sprites):
+        """Fires a bullet."""
+        now = pygame.time.get_ticks()
+        if now - self.last_shot > self.shoot_delay:
+            self.last_shot = now
+            rads = math.radians(self.angle + 90)
+            # Calculate bullet start position (tip of the ship)
+            start_pos = self.pos + pygame.Vector2(math.cos(rads) * 15, -math.sin(rads) * 15)
+            bullet = Bullet(start_pos, self.angle)
+            bullet_group.add(bullet)
+            all_sprites.add(bullet)
+
+    def reset_position(self):
+        """Resets the ship to the center after being hit."""
+        self.pos = pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.vel = pygame.Vector2(0, 0)
+        self.angle = 0
+        self.rect.center = self.pos
+        self.is_invincible = True
+        self.invincible_timer = pygame.time.get_ticks()
+
+    def update(self):
+        """Updates the ship's position and state."""
+        # Apply friction
+        self.vel *= self.friction
+        if self.vel.length() < 0.1:
+            self.vel = pygame.Vector2(0, 0)
+
+        # Update position
+        self.pos += self.vel
+        
+        # Wrap around screen
+        self.pos.x = wrap_position(self.pos.x, SCREEN_WIDTH)
+        self.pos.y = wrap_position(self.pos.y, SCREEN_HEIGHT)
+        self.rect.center = self.pos
+
+        # Handle invincibility frames
+        if self.is_invincible:
+            if pygame.time.get_ticks() - self.invincible_timer > 2000: # 2 seconds
+                self.is_invincible = False
+            else:
+                # Blink effect
+                if pygame.time.get_ticks() % 200 > 100:
+                    self.image.set_alpha(128)
+                else:
+                    self.image.set_alpha(255)
+        else:
+             self.image.set_alpha(255)
+
+
+class Bullet(pygame.sprite.Sprite):
+    """Represents a bullet fired by the player."""
+    def __init__(self, pos, angle):
+        super().__init__()
+        self.image = pygame.Surface((4, 4))
+        self.image.fill(WHITE)
+        self.rect = self.image.get_rect(center=pos)
+        self.pos = pygame.Vector2(pos)
+        
+        # Calculate velocity vector
+        rads = math.radians(angle + 90)
+        self.vel = pygame.Vector2(math.cos(rads), -math.sin(rads)) * 10
+        self.spawn_time = pygame.time.get_ticks()
+        self.lifetime = 1000 # 1 second
+
+    def update(self):
+        """Moves the bullet and checks its lifetime."""
+        self.pos += self.vel
+        self.rect.center = self.pos
+        
+        # Remove bullet if it's off-screen or lifetime expires
+        if not (0 < self.pos.x < SCREEN_WIDTH and 0 < self.pos.y < SCREEN_HEIGHT):
+            self.kill()
+        if pygame.time.get_ticks() - self.spawn_time > self.lifetime:
+            self.kill()
+
+
+class Asteroid(pygame.sprite.Sprite):
+    """Represents an asteroid."""
+    def __init__(self, size=3, position=None):
+        super().__init__()
+        self.size = size
+        
+        # Size 3: Large, 2: Medium, 1: Small
+        if self.size == 3:
+            self.radius = 40
+            self.score_value = 20
+        elif self.size == 2:
+            self.radius = 20
+            self.score_value = 50
+        else:
+            self.radius = 10
+            self.score_value = 100
+            
+        self.image = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, GRAY, (self.radius, self.radius), self.radius, 2)
+        self.rect = self.image.get_rect()
+
+        # Set position
+        if position:
+            self.pos = pygame.Vector2(position)
+        else:
+            # Spawn at a random edge
+            edge = random.choice(['top', 'bottom', 'left', 'right'])
+            if edge == 'top':
+                self.pos = pygame.Vector2(random.randint(0, SCREEN_WIDTH), 0)
+            elif edge == 'bottom':
+                self.pos = pygame.Vector2(random.randint(0, SCREEN_WIDTH), SCREEN_HEIGHT)
+            elif edge == 'left':
+                self.pos = pygame.Vector2(0, random.randint(0, SCREEN_HEIGHT))
+            else: # right
+                self.pos = pygame.Vector2(SCREEN_WIDTH, random.randint(0, SCREEN_HEIGHT))
+        
+        self.rect.center = self.pos
+        
+        # Set random velocity
+        self.vel = pygame.Vector2(random.uniform(-1.5, 1.5), random.uniform(-1.5, 1.5))
+        if self.vel.length() == 0:
+            self.vel = pygame.Vector2(1, 0) # Ensure it moves
+
+    def update(self):
+        """Moves the asteroid and wraps around the screen."""
+        self.pos += self.vel
+        self.pos.x = wrap_position(self.pos.x, SCREEN_WIDTH)
+        self.pos.y = wrap_position(self.pos.y, SCREEN_HEIGHT)
+        self.rect.center = self.pos
+
+    def break_apart(self, asteroid_group, all_sprites):
+        """Breaks the asteroid into smaller pieces."""
+        if self.size > 1:
+            # Create two smaller asteroids
+            new_size = self.size - 1
+            a1 = Asteroid(new_size, self.pos)
+            a2 = Asteroid(new_size, self.pos)
+            
+            # Give them slightly different velocities
+            a1.vel = self.vel + pygame.Vector2(random.uniform(-0.5, 0.5), random.uniform(-0.5, 0.5))
+            a2.vel = self.vel + pygame.Vector2(random.uniform(-0.5, 0.5), random.uniform(-0.5, 0.5))
+            
+            asteroid_group.add(a1, a2)
+            all_sprites.add(a1, a2)
+        self.kill()
+
+# --- Game Class ---
+class Game:
+    """Main game class to manage state and objects."""
+    def __init__(self):
+        self.all_sprites = pygame.sprite.Group()
+        self.asteroids = pygame.sprite.Group()
+        self.bullets = pygame.sprite.Group()
+        
+        self.player = Player()
+        self.all_sprites.add(self.player)
+        
+        self.score = 0
+        self.level = 0 # Will be incremented to 1 on start
+        self.game_state = "START" # START, PLAYING, GAME_OVER
+
+    def new_level(self):
+        """Starts a new level."""
+        self.level += 1
+        self.bullets.empty() # Clear old bullets
+        
+        # THIS IS THE "500+ LEVELS" MECHANIC
+        # The number of asteroids is (level + 3)
+        # Level 1: 4 asteroids
+        # Level 100: 103 asteroids
+        # Level 500: 503 asteroids
+        num_asteroids = self.level + 3 
+        
+        for _ in range(num_asteroids):
+            a = Asteroid()
+            self.all_sprites.add(a)
+            self.asteroids.add(a)
+
+    def check_collisions(self):
+        """Checks and handles all game collisions."""
+        
+        # Bullets hitting Asteroids
+        hits = pygame.sprite.groupcollide(self.bullets, self.asteroids, True, False)
+        for bullet, hit_asteroids in hits.items():
+            for asteroid in hit_asteroids:
+                self.score += asteroid.score_value
+                asteroid.break_apart(self.asteroids, self.all_sprites)
+
+        # Player hitting Asteroids
+        if not self.player.is_invincible:
+            hits = pygame.sprite.spritecollide(self.player, self.asteroids, True, pygame.sprite.collide_circle_ratio(0.8))
+            if hits:
+                self.player.lives -= 1
+                self.player.reset_position()
+                # Re-create the asteroid that was hit
+                for hit_asteroid in hits:
+                     hit_asteroid.break_apart(self.asteroids, self.all_sprites)
+                     
+                if self.player.lives <= 0:
+                    self.game_state = "GAME_OVER"
+
+    def run(self):
+        """The main game loop."""
+        running = True
+        while running:
+            # --- Event Handling ---
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                if event.type == pygame.KEYDOWN:
+                    if self.game_state == "PLAYING":
+                        if event.key == pygame.K_SPACE:
+                            self.player.shoot(self.bullets, self.all_sprites)
+                    elif self.game_state == "START":
+                        self.game_state = "PLAYING"
+                        self.new_level()
+                    elif self.game_state == "GAME_OVER":
+                        if event.key == pygame.K_r:
+                            # Reset the game
+                            self.__init__() # Re-initialize the game object
+                            self.game_state = "START"
+
+            # --- Input Handling (Pressed Keys) ---
+            if self.game_state == "PLAYING":
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                    self.player.rotate(clockwise=False)
+                if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                    self.player.rotate(clockwise=True)
+                if keys[pygame.K_UP] or keys[pygame.K_w]:
+                    self.player.thrust()
+
+            # --- Game Logic ---
+            if self.game_state == "PLAYING":
+                self.all_sprites.update()
+                self.check_collisions()
+                
+                # Check for next level
+                if not self.asteroids:
+                    self.new_level()
+                    self.player.reset_position() # Give player a moment
+
+            # --- Drawing ---
+            screen.fill(BLACK)
+            
+            if self.game_state == "START":
+                draw_text("ASTEROIDS", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40)
+                draw_text("Press any key to Start", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20)
+                draw_text("Controls: Arrow Keys/WASD, Space to Shoot", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60)
+
+            elif self.game_state == "PLAYING":
+                self.all_sprites.draw(screen)
+                # Draw UI
+                draw_text(f"Score: {self.score}", 100, 30)
+                draw_text(f"Level: {self.level}", SCREEN_WIDTH // 2, 30)
+                draw_text(f"Lives: {self.player.lives}", SCREEN_WIDTH - 100, 30)
+
+            elif self.game_state == "GAME_OVER":
+                draw_text("GAME OVER", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40)
+                draw_text(f"Final Score: {self.score}", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                draw_text(f"Reached Level: {self.level}", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 40)
+                draw_text("Press 'R' to Restart", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 80)
+
+            pygame.display.flip()
+            clock.tick(FPS)
+
+        pygame.quit()
+
+
+# --- Run the Game ---
+if __name__ == "__main__":
+    game = Game()
+    game.run()
