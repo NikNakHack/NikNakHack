@@ -1,0 +1,37 @@
+from transformers import pipeline
+
+# 1. Load a pre-trained model
+# This creates a "pipeline" for text-generation.
+# It will download the model (like gpt2) the first time you run it.
+try:
+    print("Loading model... (This may take a moment on first run)")
+    # 'text-generation' is the task we want to perform
+    # 'model="gpt2"' specifies which model to use. GPT-2 is a famous
+    # predecessor to models like GPT-3 and me.
+    generator = pipeline('text-generation', model='gpt2')
+    print("Model loaded successfully.")
+
+    # 2. Define a prompt
+    prompt = "In a world where AI can code itself,"
+
+    # 3. Generate text based on the prompt
+    print(f"\nPrompt: '{prompt}...'")
+    outputs = generator(
+        prompt, 
+        max_length=75,  # The total length of the output
+        num_return_sequences=1,  # How many different answers to generate
+        truncation=True
+    )
+
+    print("\nGenerated Text:")
+    print("-----------------")
+    for output in outputs:
+        print(output['generated_text'])
+
+except ImportError:
+    print("Error: 'transformers' library not found.")
+    print("Please install it by running: pip install transformers")
+except Exception as e:
+    print(f"An error occurred: {e}")
+    print("This could be due to a network issue or missing dependencies.")
+    print("Please ensure you have 'torch' or 'tensorflow' installed: pip install torch")
