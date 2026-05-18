@@ -5,10 +5,7 @@
 - 📫 How to reach me /why should you know?/ |;/
 - 😄 Pronouns: ...
 - ⚡ Fun fact:  Im slick
-
-  GitHub hasn´t fixed a breach in their system so please notify them, People  hack into this software
-
-https://playcode.io/1883065
+lowk its been 3 yrs now so i am gonna start to use this more
 
 
 
